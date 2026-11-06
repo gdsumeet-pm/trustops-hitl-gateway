@@ -1,0 +1,155 @@
+openapi: 3.0.3
+info:
+  title: TrustOps v1.0 — Enterprise AI Policy & HITL Verification Gateway API
+  version: 1.0.0
+  description: >
+    OpenAPI 3.0.3 contract for dual-track FinTech KYC/KYB verification, 10-rule deterministic policy
+    guardrails, confidence-tiered Human-in-the-Loop (HITL) routing, and SHA-256 hash-chained audit logging.
+  contact:
+    name: Sumeet S Sharma — Senior Product Manager (B2B SaaS, Internal Platforms & Applied AI)
+paths:
+  /health:
+    get:
+      summary: Service health and SHA-256 cryptographic audit chain verification
+      responses:
+        '200':
+          description: Healthy service status with verified hash chain count
+  /v1/config:
+    get:
+      summary: Retrieve active YAML risk thresholds, confidence weights, and SLA timers
+      responses:
+        '200':
+          description: Active policy configuration object
+  /v1/verify:
+    post:
+      summary: Verify unstructured Consumer KYC or SME KYB document and route via state machine
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationIntakeRequest'
+      responses:
+        '200':
+          description: Deterministic routing decision, confidence breakdown, and triggered policy flags
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationResponse'
+  /v1/review-queue:
+    get:
+      summary: Retrieve pending cases routed to Tier-1 HITL Review or Compliance Escalation
+      responses:
+        '200':
+          description: List of pending VerificationResponse items
+  /v1/review/{case_id}/decision:
+    post:
+      summary: Commit human reviewer decision (Approve, Override, Reject, Escalate) to SHA-256 audit log
+      parameters:
+        - name: case_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HumanReviewSubmission'
+      responses:
+        '200':
+          description: Newly appended SHA-256 AuditLogEntry
+  /v1/audit-trail/{case_id}:
+    get:
+      summary: Retrieve immutable SHA-256 hash-chained audit history for a specific case
+      parameters:
+        - name: case_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Chronological list of cryptographic audit events
+  /v1/metrics:
+    get:
+      summary: Real-time Straight-Through Processing (STP) rate and queue depth telemetry
+      responses:
+        '200':
+          description: Operational SLA and routing metrics summary
+components:
+  schemas:
+    VerificationIntakeRequest:
+      type: object
+      required:
+        - case_id
+        - workflow_type
+        - applicant_name
+        - declared_jurisdiction
+        - document_type
+        - raw_document_text
+      properties:
+        case_id:
+          type: string
+          example: "KYB-2026-016"
+        workflow_type:
+          type: string
+          enum: [CONSUMER_KYC, SME_KYB]
+        applicant_name:
+          type: string
+          example: "Kaveri BioLabs Private Limited"
+        declared_jurisdiction:
+          type: string
+          example: "IN"
+        document_type:
+          type: string
+          example: "CERTIFICATE_OF_INCORPORATION"
+        raw_document_text:
+          type: string
+        ocr_quality_score:
+          type: number
+          default: 0.95
+        requested_credit_limit_usd:
+          type: number
+          default: 75000.0
+    VerificationResponse:
+      type: object
+      properties:
+        case_id:
+          type: string
+        workflow_type:
+          type: string
+          enum: [CONSUMER_KYC, SME_KYB]
+        routing_decision:
+          type: string
+          enum: [AUTO_APPROVED, HITL_TIER_1_REVIEW, HARD_BLOCK_ESCALATED]
+        composite_confidence:
+          type: number
+        target_sla_minutes:
+          type: integer
+        audit_event_hash:
+          type: string
+        processing_latency_ms:
+          type: number
+    HumanReviewSubmission:
+      type: object
+      required:
+        - case_id
+        - reviewer_id
+        - action
+        - reviewer_notes
+      properties:
+        case_id:
+          type: string
+        reviewer_id:
+          type: string
+        action:
+          type: string
+          enum: [APPROVE, OVERRIDE_AND_APPROVE, REJECT, ESCALATE_COMPLIANCE]
+        override_fields:
+          type: object
+        reviewer_notes:
+          type: string
+        review_duration_seconds:
+          type: integer
